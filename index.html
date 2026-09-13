@@ -63,7 +63,7 @@ html,body{height:100%;width:100%;overflow:hidden;background:#05060c;
 })();
 </script>
 <div id="wrap">
-  <div id="stage"><canvas id="game"></canvas><div id="hint">↑↓←→ 同時押し・斜めボタンで8方向移動 ／ Z 決定 ／ X もどる・長押しでダッシュ ／ Shift メニュー</div></div>
+  <div id="stage"><canvas id="game"></canvas><div id="hint">↑↓←→ 同時押し・斜めボタンで8方向移動 ／ Z 決定 ／ X もどる ／ 通常移動は高速 ／ Shift メニュー</div></div>
   <div id="pad">
     <div class="dpad">
       <button class="ul" data-k="ul">↖</button><button class="u" data-k="up">▲</button><button class="ur" data-k="ur">↗</button>
@@ -76,7 +76,7 @@ html,body{height:100%;width:100%;overflow:hidden;background:#05060c;
         <button class="small" id="bS" data-k="s">♪</button>
       </div>
       <div class="row2">
-        <button class="big" id="bB" data-k="b">もどる<br><span style="font-size:9px;opacity:.65">長押し走</span></button>
+        <button class="big" id="bB" data-k="b">もどる<br><span style="font-size:9px;opacity:.65">キャンセル</span></button>
         <button class="big" id="bA" data-k="a">けってい</button>
       </div>
     </div>
@@ -4195,7 +4195,7 @@ function updateField(dt){
   if(mv){
     // 斜めは1.414マスぶん動くため、その距離ぶんだけ時間も使う。
     // これにより斜め入力だけが高速移動にならない。
-    mv.t+=dt/((mv.diag?Math.SQRT2:1)*(K.b?0.093:0.16));
+    mv.t+=dt/((mv.diag?Math.SQRT2:1)*0.093);
     if(mv.t>=1){ mv=null; onArrive(); }
   }else{
     let dx=0,dy=0;
@@ -14252,7 +14252,7 @@ const _templeWalk=walkable;
 walkable=function(x,y){if(G.map==='temple_hall'&&y===18&&x>=3&&x<=8)return !!G.flags.templeBeam;return _templeWalk(x,y);};
 const _templeWarp=warpBlocked;
 warpBlocked=function(w){const L=templeLine;
- if(G.map==='monzen'&&w?.m==='tani'&&!G.flags.templeDone&&!templeLate(G)){say([L('レン',G.flags.kurobane?'ハルさんに、ミツさんが無事だと知らせよう。':'山のお堂の人を助けてから、父さんの小屋へ行こう。'),L('','橋のそばのハルに話を聞き、東の参道へ。')]);return true;}
+ if(G.map==='monzen'&&w?.m==='tani'&&!G.flags.templeDone){say([L('レン',G.flags.kurobane?'ハルさんに、ミツさんが無事だと知らせよう。':'山のお堂の人を助けてから、父さんの小屋へ行こう。'),L('','橋のそばのハルに話を聞き、東の参道へ。')]);return true;}
  if(w?.m==='torii_path'&&G.map==='monzen'&&!G.flags.templeAccepted){say([L('カガリ','まずハルから、お堂の状況を聞こう。')]);return true;}
  if(G.map==='aoi'&&w?.m==='nohara'&&G.flags.roadQuestDone&&!G.flags.metSora&&!G.flags.departureTrust){say([L('トウマ','北へ行くんだな。おばさんのところは、俺も顔を出す。'),L('トウマ','だからって、帰らなくていいって話じゃないぞ。'),L('レン','……分かってる。帰って、また俺が配る。'),L('トウマ','ああ。道の見回りは任せろ。')],()=>G.flags.departureTrust=1);return true;}
  return _templeWarp(w);
@@ -14328,6 +14328,32 @@ updateField=function(dt){if(templeFlight&&!templeFlight.done){templeFlight.t+=dt
 const _templeFlightFG=drawFieldForegroundLayer;
 drawFieldForegroundLayer=function(...a){_templeFlightFG(...a);if(templeFlight&&G.map==='temple_stage'){const u=Math.min(1,templeFlight.t/1.35),v=1-Math.pow(1-u,2);drawTempleCreature('kurobane',336+(1-v)*210,288-(1-v)*245,.72);}};
 const _templeReset=resetRuntime;resetRuntime=function(){templeFlight=null;return _templeReset();};
+/* 山寺を本筋の必須イベントに統合。再訪でも省略しない。 */
+const _templeMandatoryWarp=warpBlocked;
+warpBlocked=function(w){if(!G.flags.templeDone&&G.flags.kagari&&MAPS[G.map].era==='過去'&&w&&['yanagi_hut','kazan_path','kazan'].includes(w.m)){
+ say([templeLine('レン','山のお堂の救援を済ませよう。'),templeLine('','北の門前町へ戻り、山寺へ向かおう。')]);return true;}
+ return _templeMandatoryWarp(w);};
+const _templeMandatoryGate=openGate;
+openGate=function(...a){if(G.flags.kagari&&!G.flags.templeDone&&MAPS[G.map].era==='過去'){
+ say([templeLine('カガリ','山のお堂に人が取り残されておる。時を渡る前に、助けに行くぞ。'),templeLine('','門前町から、朱い鳥居の参道へ。')]);return;}
+ return _templeMandatoryGate(...a);};
+const _templeMandatoryArrival=onArrive;
+onArrive=function(){if(!G.flags.templeDone&&G.flags.kagari&&G.map==='kazan'&&BOSSPTS.some(b=>b.id==='enbi'&&bossTriggerAt(b,G.px,G.py))){say([templeLine('カガリ','火の底へ進む前に、山のお堂の人を助けよう。'),templeLine('','谷を北へ戻ると、灯坂の門前町に着く。')]);return;}return _templeMandatoryArrival();};
+const _templeMandatoryEnter=mapEnter;
+mapEnter=function(){if(G.map==='monzen'&&G.flags.kagari&&!G.flags.templeAccepted&&!G.flags.templeDone){
+ const n=NPCS.monzen[0];G.flags.b_monzen_arrive=1;
+ say([templeLine('','水路の橋で、灯守のハルが一行を呼び止めた。'),...filterLines(n.talk(G))],()=>{n.after(G);toast('必須：東の鳥居参道から山寺の灯守を救援');});return true;}
+ return _templeMandatoryEnter();};
+// 途中のセーブから再開しても、未受注なら門前町で自動発生する。
+const _templeMandatoryUpdate=updateField;
+updateField=function(dt){if(G.map==='monzen'&&G.flags.kagari&&!G.flags.templeAccepted&&!G.flags.templeDone&&!dlg&&!mv&&!gateMenu&&fadeDir!==1){mapEnter();return;}return _templeMandatoryUpdate(dt);};
+const _templeHaru=NPCS.monzen[0].talk;
+NPCS.monzen[0].talk=g=>_templeHaru(g).map(l=>{
+ if(!g.flags.metYanagi)return l;
+ if(l.t==='父さんの小屋には、その後で行こう。まず、その人を助ける。')return templeLine('レン','放っておけない。まず、その人を助けよう。');
+ if(l.t==='谷の小屋へ行こう。ヤナギが遺したものを、今度はおぬしが読む番だ。')return templeLine('カガリ',g.flags.cleared?'ここで継いだ灯も、次の者へ渡ってゆく。様子を見に、また寄ろう。':'これで山の人々は無事だ。おぬしたちの旅を続けよう。');
+ return l;
+});
 
 /* ============================================================
    メインループ
